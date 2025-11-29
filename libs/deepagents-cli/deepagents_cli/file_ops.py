@@ -31,7 +31,12 @@ class ApprovalPreview:
 def _safe_read(path: Path) -> str | None:
     """Read file content, returning None on failure."""
     try:
-        return path.read_text()
+        # Try UTF-8 first, fallback to system default encoding
+        try:
+            return path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            # Fallback to system default encoding for files that aren't UTF-8
+            return path.read_text()
     except (OSError, UnicodeDecodeError):
         return None
 

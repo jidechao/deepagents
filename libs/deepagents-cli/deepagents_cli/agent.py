@@ -73,7 +73,7 @@ def reset_agent(agent_name: str, source_agent: str | None = None) -> None:
             )
             return
 
-        source_content = source_md.read_text()
+        source_content = source_md.read_text(encoding="utf-8")
         action_desc = f"contents of agent '{source_agent}'"
     else:
         source_content = get_default_coding_instructions()
@@ -85,7 +85,7 @@ def reset_agent(agent_name: str, source_agent: str | None = None) -> None:
 
     agent_dir.mkdir(parents=True, exist_ok=True)
     agent_md = agent_dir / "agent.md"
-    agent_md.write_text(source_content)
+    agent_md.write_text(source_content, encoding="utf-8")
 
     console.print(f"✓ Agent '{agent_name}' reset to {action_desc}", style=COLORS["primary"])
     console.print(f"Location: {agent_dir}\n", style=COLORS["dim"])
@@ -349,7 +349,7 @@ def create_agent_with_config(
     agent_md = agent_dir / "agent.md"
     if not agent_md.exists():
         source_content = get_default_coding_instructions()
-        agent_md.write_text(source_content)
+        agent_md.write_text(source_content, encoding="utf-8")
 
     # Skills directory - per-agent (user-level)
     skills_dir = settings.ensure_user_skills_dir(assistant_id)

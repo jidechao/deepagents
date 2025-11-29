@@ -357,7 +357,7 @@ def get_default_coding_instructions() -> str:
     Long-term memory (agent.md) is handled separately by the middleware.
     """
     default_prompt_path = Path(__file__).parent / "default_agent_prompt.md"
-    return default_prompt_path.read_text()
+    return default_prompt_path.read_text(encoding="utf-8")
 
 
 def create_model() -> BaseChatModel:

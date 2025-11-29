@@ -280,7 +280,7 @@ This skill directory can include supporting files referenced in the instructions
 """
 
     skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text(template)
+    skill_md.write_text(template, encoding="utf-8")
 
     console.print(f"✓ Skill '{skill_name}' created successfully!", style=COLORS["primary"])
     console.print(f"Location: {skill_dir}\n", style=COLORS["dim"])
@@ -334,7 +334,7 @@ def _info(skill_name: str, *, agent: str = "agent", project: bool = False) -> No
 
     # Read the full SKILL.md file
     skill_path = Path(skill["path"])
-    skill_content = skill_path.read_text()
+    skill_content = skill_path.read_text(encoding="utf-8")
 
     # Determine source label
     source_label = "Project Skill" if skill["source"] == "project" else "User Skill"

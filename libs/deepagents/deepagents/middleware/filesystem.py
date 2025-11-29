@@ -99,9 +99,9 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
     and enforcing consistent formatting. All paths are normalized to use
     forward slashes and start with a leading slash.
 
-    This function is designed for virtual filesystem paths and rejects
-    Windows absolute paths (e.g., C:/..., F:/...) to maintain consistency
-    and prevent path format ambiguity.
+    On Windows, this function can convert Windows absolute paths to virtual paths
+    if they are within the current working directory. Otherwise, Windows absolute
+    paths are rejected to maintain consistency in virtual filesystem paths.
 
     Args:
         path: The path to validate and normalize.
@@ -113,7 +113,7 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
 
     Raises:
         ValueError: If path contains traversal sequences (`..` or `~`), is a
-            Windows absolute path (e.g., C:/...), or does not start with an
+            Windows absolute path outside the working directory, or does not start with an
             allowed prefix when `allowed_prefixes` is specified.
 
     Example:
@@ -121,7 +121,7 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
         validate_path("foo/bar")  # Returns: "/foo/bar"
         validate_path("/./foo//bar")  # Returns: "/foo/bar"
         validate_path("../etc/passwd")  # Raises ValueError
-        validate_path(r"C:\\Users\\file.txt")  # Raises ValueError
+        validate_path(r"C:\\Users\\file.txt")  # On Windows: converts to virtual path if in cwd
         validate_path("/data/file.txt", allowed_prefixes=["/data/"])  # OK
         validate_path("/etc/file.txt", allowed_prefixes=["/data/"])  # Raises ValueError
         ```
@@ -130,17 +130,95 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
         msg = f"Path traversal not allowed: {path}"
         raise ValueError(msg)
 
-    # Reject Windows absolute paths (e.g., C:\..., D:/...)
-    # This maintains consistency in virtual filesystem paths
+    # Handle Windows absolute paths (e.g., C:\..., D:/...)
+    # Convert to virtual path if within current working directory
     if re.match(r"^[a-zA-Z]:", path):
-        msg = f"Windows absolute paths are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
-        raise ValueError(msg)
+        try:
+            from pathlib import Path
+            
+            # Convert Windows path to Path object
+            # Handle both backslash and forward slash separators
+            # Normalize all separators to backslashes for Windows
+            normalized_path = path.replace("/", "\\")
+            win_path = Path(normalized_path)
+            
+            # Resolve the path (handles . and .. components)
+            # Try to resolve, but handle cases where file doesn't exist
+            try:
+                # Only resolve if the path or its parent exists
+                if win_path.exists() or win_path.parent.exists():
+                    win_path = win_path.resolve()
+                else:
+                    # For non-existent paths, try to resolve the parent directory
+                    try:
+                        parent_resolved = win_path.parent.resolve()
+                        win_path = parent_resolved / win_path.name
+                    except (OSError, ValueError):
+                        # If parent resolution also fails, use the path as-is
+                        pass
+            except (OSError, ValueError):
+                # If resolve fails (e.g., path doesn't exist), use path as-is
+                # This handles cases where the file doesn't exist yet
+                pass
+            
+            cwd = Path.cwd().resolve()
+            
+            # Check if the Windows path is within the current working directory
+            try:
+                # Try to get relative path
+                relative_path = win_path.relative_to(cwd)
+                # Convert to virtual path format
+                normalized = "/" + str(relative_path).replace("\\", "/")
+                # Normalize the path
+                normalized = os.path.normpath(normalized).replace("\\", "/")
+                if not normalized.startswith("/"):
+                    normalized = f"/{normalized}"
+            except ValueError:
+                # Path is outside the working directory
+                # Check if it's in a .deepagents directory (allowed for skills and config)
+                try:
+                    # Check if path contains .deepagents directory
+                    path_str = str(win_path).lower()
+                    if ".deepagents" in path_str:
+                        # Extract the part after .deepagents
+                        deepagents_idx = path_str.find(".deepagents")
+                        if deepagents_idx != -1:
+                            # Get the part after .deepagents
+                            after_deepagents = str(win_path)[deepagents_idx + len(".deepagents"):]
+                            # Normalize and convert to virtual path
+                            normalized = "/.deepagents" + after_deepagents.replace("\\", "/")
+                            normalized = os.path.normpath(normalized).replace("\\", "/")
+                            if not normalized.startswith("/"):
+                                normalized = f"/{normalized}"
+                        else:
+                            # Fallback: reject paths outside working directory
+                            msg = f"Windows absolute paths outside the working directory are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
+                            raise ValueError(msg) from None
+                    else:
+                        # Path is outside working directory and not in .deepagents - reject it
+                        msg = f"Windows absolute paths outside the working directory are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
+                        raise ValueError(msg) from None
+                except ValueError:
+                    # Re-raise ValueError if we raised it above
+                    raise
+                except Exception:
+                    # If any other error occurs, reject the path
+                    msg = f"Windows absolute paths outside the working directory are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
+                    raise ValueError(msg) from None
+        except ValueError:
+            # Re-raise ValueError (already handled above)
+            raise
+        except Exception as e:
+            # Fallback: reject Windows absolute paths if conversion fails
+            # Log the exception for debugging but don't expose it to user
+            msg = f"Windows absolute paths are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
+            raise ValueError(msg) from None
+    else:
+        normalized = os.path.normpath(path)
+        normalized = normalized.replace("\\", "/")
 
-    normalized = os.path.normpath(path)
-    normalized = normalized.replace("\\", "/")
-
-    if not normalized.startswith("/"):
-        normalized = f"/{normalized}"
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
 
     if allowed_prefixes is not None and not any(normalized.startswith(prefix) for prefix in allowed_prefixes):
         msg = f"Path must start with one of {allowed_prefixes}: {path}"

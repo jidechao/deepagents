@@ -30,7 +30,7 @@ def calculate_baseline_tokens(model, agent_dir: Path, system_prompt: str, assist
     agent_md_path = agent_dir / "agent.md"
     user_memory = ""
     if agent_md_path.exists():
-        user_memory = agent_md_path.read_text()
+        user_memory = agent_md_path.read_text(encoding="utf-8")
 
     # Load project agent.md content
     from .config import _find_project_agent_md, _find_project_root
@@ -44,7 +44,7 @@ def calculate_baseline_tokens(model, agent_dir: Path, system_prompt: str, assist
                 # Combine all project agent.md files (if multiple exist)
                 contents = []
                 for path in project_md_paths:
-                    contents.append(path.read_text())
+                    contents.append(path.read_text(encoding="utf-8"))
                 project_memory = "\n\n".join(contents)
             except Exception:
                 pass

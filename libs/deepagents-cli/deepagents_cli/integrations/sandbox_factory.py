@@ -28,7 +28,7 @@ def _run_sandbox_setup(backend: SandboxBackendProtocol, setup_script_path: str) 
     console.print(f"[dim]Running setup script: {setup_script_path}...[/dim]")
 
     # Read script content
-    script_content = script_path.read_text()
+    script_content = script_path.read_text(encoding="utf-8")
 
     # Expand ${VAR} syntax using local environment
     template = string.Template(script_content)

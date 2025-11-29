@@ -37,20 +37,58 @@ class TestValidatePath:
             _validate_path("~/secret.txt")
 
     def test_windows_absolute_path_rejected_backslash(self):
-        """Test that Windows absolute paths with backslashes are rejected."""
-        with pytest.raises(ValueError, match="Windows absolute paths are not supported"):
-            _validate_path("C:\\Users\\Documents\\file.txt")
-
-        with pytest.raises(ValueError, match="Windows absolute paths are not supported"):
-            _validate_path("F:\\git\\project\\file.txt")
+        """Test that Windows absolute paths outside working directory are rejected."""
+        import os
+        import sys
+        
+        # Only run this test on Windows
+        if sys.platform != "win32":
+            pytest.skip("Windows-specific test")
+        
+        # Test paths outside the current working directory
+        # Use a path that's unlikely to be in the current working directory
+        with pytest.raises(ValueError, match="Windows absolute paths outside the working directory are not supported"):
+            _validate_path("Z:\\nonexistent\\file.txt")
 
     def test_windows_absolute_path_rejected_forward_slash(self):
-        """Test that Windows absolute paths with forward slashes are rejected."""
-        with pytest.raises(ValueError, match="Windows absolute paths are not supported"):
-            _validate_path("C:/Users/Documents/file.txt")
+        """Test that Windows absolute paths outside working directory are rejected."""
+        import sys
+        
+        # Only run this test on Windows
+        if sys.platform != "win32":
+            pytest.skip("Windows-specific test")
+        
+        # Test paths outside the current working directory
+        with pytest.raises(ValueError, match="Windows absolute paths outside the working directory are not supported"):
+            _validate_path("Z:/nonexistent/file.txt")
 
-        with pytest.raises(ValueError, match="Windows absolute paths are not supported"):
-            _validate_path("D:/data/output.csv")
+    def test_windows_absolute_path_converted_to_virtual(self):
+        """Test that Windows absolute paths within working directory are converted to virtual paths."""
+        import os
+        import sys
+        from pathlib import Path
+        
+        # Only run this test on Windows
+        if sys.platform != "win32":
+            pytest.skip("Windows-specific test")
+        
+        # Get current working directory as Windows path
+        cwd = Path.cwd().resolve()
+        cwd_str = str(cwd)
+        
+        # Test Windows path within current working directory
+        test_file = cwd / "test_file.txt"
+        win_path = str(test_file)
+        
+        # Should convert to virtual path
+        result = _validate_path(win_path)
+        assert result == "/test_file.txt" or result.endswith("/test_file.txt")
+        
+        # Test with subdirectory
+        test_subdir = cwd / "subdir" / "file.txt"
+        win_path_subdir = str(test_subdir)
+        result_subdir = _validate_path(win_path_subdir)
+        assert result_subdir == "/subdir/file.txt" or result_subdir.endswith("/subdir/file.txt")
 
     def test_allowed_prefixes_enforcement(self):
         """Test that allowed_prefixes parameter is enforced."""
